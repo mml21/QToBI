@@ -1,0 +1,151 @@
+<project name="Amadeus">
+
+	<property name="src.dir" value="src"/>
+	<property name="src.unit-tests.dir" value="test"/>
+	<property name="src.system-tests.dir" value="systemtest"/>
+	<property name="src.acceptance-tests.dir" value="acceptance-tests"/>
+	<property name="build.dir" value="out"/>
+	<property name="build.prod.dir" value="${build.dir}/production"/>
+    <property name="tests.dir" value="${build.dir}/test"/>
+	<property name="build.unit-tests.dir" value="${tests.dir}/unit-tests"/>
+	<property name="build.system-tests.dir" value="${tests.dir}/system-tests"/>
+	<property name="build.acceptance-tests.dir" value="${tests.dir}/acceptance-tests"/>
+	<property name="build.jar.dir" value="${build.dir}/jar"/>
+	<property name="lib.dir" value="lib"/>
+    <property name="rabbitmq-lib.dir" value="lib/rabbitmq"/>
+	<property name="jmock-lib.dir" value="lib/jmock"/>
+	<property name="junit-lib.dir" value="lib/jmock"/>
+	<property name="fit.lib.dir" value="lib"/>
+	<property name="unit-tests.report.dir" value="junitreport"/>
+	<property name="system-tests.report.dir" value="junitreport/system-tests"/>
+	<property name="fit.input.dir" value="fit-input-files"/>
+	<property name="fit.output.dir" value="fit-output-reports"/>
+
+	<path id="compile.classpath.amadeus">
+		<fileset dir="${lib.dir}" includes ="*.jar"/>
+        <fileset dir="${rabbitmq-lib.dir}" includes ="*.jar"/>
+	</path>
+
+	<path id="compile.classpath.unit-tests">
+		<fileset dir="${junit-lib.dir}" includes ="*.jar"/>
+		<fileset dir="${jmock-lib.dir}" includes ="*.jar"/>
+        <fileset dir="${rabbitmq-lib.dir}" includes ="*.jar"/>
+		<path refid="compile.classpath.amadeus" />
+		<pathelement location="${build.prod.dir}" />
+		<pathelement location="${build.unit-tests.dir}" />
+	</path>
+
+	<path id="compile.classpath.system-tests">
+		<fileset dir="${lib.dir}" includes ="*.jar"/>
+        <fileset dir="${rabbitmq-lib.dir}" includes ="*.jar"/>
+		<fileset dir="${junit-lib.dir}" includes ="*.jar"/>
+		<fileset dir="${jmock-lib.dir}" includes ="*.jar"/>
+		<path refid="compile.classpath.amadeus" />
+		<pathelement location="build/classes/amadeus" />
+		<pathelement location="build/classes/system-tests" />
+	</path>
+
+	<path id="compile.classpath.acceptance-tests">
+		<fileset dir="${lib.dir}" includes ="external.jar"/>
+        <fileset dir="${rabbitmq-lib.dir}" includes ="*.jar"/>
+		<fileset dir="${fit.lib.dir}" />
+		<pathelement location="build/amadeus.jar" />
+	</path>
+
+	<path id="run.classpath.acceptance-tests">
+		<pathelement location="build/acceptance-tests.jar" />
+		<path refid="compile.classpath.acceptance-tests" />
+	</path>
+
+	<target name="clean" description="Removes all build artefacts">
+		<delete dir="${build.dir}" />
+		<delete dir="${fit.output.dir}" />
+		<delete dir="${unit-tests.report.dir}" />
+	</target>
+
+	<target name="prepare">
+		<mkdir dir="${build.prod.dir}"/>
+		<mkdir dir="${build.unit-tests.dir}"/>
+		<mkdir dir="${build.system-tests.dir}"/>
+		<mkdir dir="${build.acceptance-tests.dir}"/>
+	</target>
+
+	<target name="compile" depends="prepare">
+		<javac srcdir="${src.dir}" destdir="${build.prod.dir}"
+		       classpathref="compile.classpath.amadeus"
+		       includeantruntime="false"/>
+	</target>
+
+	<target name="compile-unit-tests" depends="prepare, compile">
+		<javac srcdir="${src.unit-tests.dir}" destdir="${build.unit-tests.dir}"
+		       classpathref="compile.classpath.unit-tests"
+			   includeantruntime="false"/>
+	</target>
+
+	<target name="compile-system-tests" depends="prepare, compile">
+		<javac srcdir="${src.system-tests.dir}" destdir="${build.system-tests.dir}"
+		       classpathref="compile.classpath.system-tests"
+			   includeantruntime="false"/>
+	</target>
+
+	<target name="compile-acceptance-tests" depends="prepare, jar-amadeus">
+		<javac srcdir="${src.acceptance-tests.dir}" destdir="${build.acceptance-tests.dir}"
+		       classpathref="compile.classpath.acceptance-tests"
+		       includeantruntime="false"/>
+	</target>
+
+    <target name="jar-amadeus" depends="compile">
+		<jar jarfile="build/amadeus.jar">
+			<fileset dir="${build.prod.dir}" />
+		</jar>
+    </target>
+
+    <target name="jar-acceptance-tests" depends="jar-amadeus, compile-acceptance-tests">
+		<jar jarfile="build/acceptance-tests.jar">
+			<fileset dir="${build.acceptance-tests.dir}" />
+		</jar>
+    </target>
+
+	<target name="run-unit-tests" depends="compile, compile-unit-tests">
+	    <mkdir dir="${unit-tests.report.dir}"/>
+	    <junit printsummary="yes" errorProperty="test.failed" failureProperty="test.failed">
+	      <classpath refid="compile.classpath.unit-tests"/>
+	      <formatter type="xml"/>
+	      <batchtest fork="yes" todir="${unit-tests.report.dir}">
+		     <fileset dir="${src.unit-tests.dir}" includes="**/*Test.java"/>
+	      </batchtest>
+	    </junit>
+	    <junitreport todir="${unit-tests.report.dir}">
+	      <fileset dir="${unit-tests.report.dir}" includes="TEST-*.xml"/>
+	      <report todir="${unit-tests.report.dir}"/>
+	    </junitreport>
+	    <fail message="Unit tests failed. Check reports." if="test.failed"/>
+	</target>
+
+	 <target name="run-system-tests" depends="compile, compile-system-tests">
+	    <mkdir dir="${system-tests.report.dir}"/>
+	    <junit printsummary="yes" errorProperty="test.failed" failureProperty="test.failed">
+	      <classpath refid="compile.classpath.system-tests"/>
+	      <formatter type="xml"/>
+	      <batchtest fork="yes" todir="${system-tests.report.dir}">
+		    <fileset dir="${src.system-tests.dir}" includes="**/*Test.java"/>
+	      </batchtest>
+	    </junit>
+	    <junitreport todir="${system-tests.report.dir}">
+	      <fileset dir="${system-tests.report.dir}" includes="TEST-*.xml"/>
+	      <report todir="${system-tests.report.dir}"/>
+	    </junitreport>
+	    <fail message="System tests failed. Check reports." if="test.failed"/>
+	</target>
+
+	<target name="run-acceptance-tests" depends="jar-acceptance-tests">
+		<java classname="fitlibrary.runner.FolderRunner" classpathref="run.classpath.acceptance-tests">
+			<arg value="${fit.input.dir}" />
+			<arg value="${fit.output.dir}" />
+		</java>
+	</target>
+
+	<target name="full-build" description="Builds everything from scratch and runs unit, system and acceptance tests"
+		depends="clean, run-unit-tests, run-system-tests" />
+
+</project>
